@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  
+  --color-brand: oklch(0.6 0.15 250);
+  --color-brand-hover: oklch(0.65 0.16 250);
+  
+  --color-bg-base: oklch(0.18 0.01 250);
+  --color-bg-surface: oklch(0.22 0.01 250);
+  --color-bg-elevated: oklch(0.26 0.01 250);
+  
+  --color-text-primary: oklch(0.95 0.01 250);
+  --color-text-secondary: oklch(0.7 0.01 250);
+  --color-text-muted: oklch(0.5 0.01 250);
+  
+  --color-border: oklch(0.28 0.01 250);
+  --color-border-hover: oklch(0.35 0.01 250);
+}
+
+@layer base {
+  body {
+    @apply bg-bg-base text-text-primary font-sans antialiased selection:bg-brand/30 selection:text-white;
+  }
+  
+  /* Scrollbar estético */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full hover:bg-border-hover transition-colors;
+  }
+}

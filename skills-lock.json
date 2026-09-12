@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "copilot-sdk": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/copilot-sdk/SKILL.md",
+      "computedHash": "16beed1bc9cddb25e0b0af8afedbdac70ba90debaa9d490fa9921e3eddce020e"
+    }
+  }
+}

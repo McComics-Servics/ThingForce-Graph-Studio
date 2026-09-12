@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "thingforce-graph": {
+      "command": "node",
+      "args": [
+        "RUTA_ABSOLUTA/ThingForce-Graph-Studio/server/mcp-server.mjs",
+        "--stdio"
+      ]
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "thingforce-graph-studio",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "test": "node --test tests/project-registry.test.mjs tests/github-local-auth.test.mjs && python -m unittest tests/test_python_graph_enricher.py -v",
+    "preview": "vite preview",
+    "mcp": "node server/mcp-server.mjs",
+    "mcp-stdio": "node server/mcp-server.mjs --stdio",
+    "start:dashboard": "node scripts/start-dashboard.mjs",
+    "graph:project": "node scripts/generateProjectGraph.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@xyflow/react": "^12.11.2",
+    "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
+    "fuse.js": "^7.5.0",
+    "lucide-react": "^1.27.0",
+    "motion": "^12.43.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.54",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "chokidar": "^5.0.0",
+    "oxlint": "^1.71.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "ws": "^8.21.1"
+  },
+  "overrides": {
+    "nanoid": "^3.3.18"
+  }
+}

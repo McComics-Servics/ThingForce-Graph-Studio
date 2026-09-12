@@ -1,0 +1,655 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ThingForce™ Graph Studio Local API",
+    "version": "2.1.0",
+    "description": "API local multiproyecto para registrar, generar y consultar grafos de código. Solo debe escucharse en 127.0.0.1. No se puede publicar directamente: carece de autenticación y contiene endpoints administrativos."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3098",
+      "description": "Servidor exclusivamente local"
+    }
+  ],
+  "tags": [
+    { "name": "Projects", "description": "Registro y generación local de proyectos" },
+    { "name": "Graph", "description": "Consultas sobre un grafo seleccionado" },
+    { "name": "MCP", "description": "Catálogo y ejecución de las nueve herramientas" },
+    { "name": "Local UI", "description": "Operaciones auxiliares solo para el dashboard local" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Local UI"],
+        "operationId": "getLocalHealth",
+        "summary": "Verificar identidad del proceso local",
+        "responses": {
+          "200": {
+            "description": "PID y token opcional usados por el supervisor local",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status", "pid", "instance_token"],
+                  "properties": {
+                    "status": { "type": "string", "const": "ok" },
+                    "pid": { "type": "integer" },
+                    "instance_token": { "type": ["string", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "operationId": "listProjects",
+        "summary": "Listar proyectos registrados",
+        "responses": {
+          "200": {
+            "description": "Registro y proyecto predeterminado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectList" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "operationId": "registerAndGenerateProject",
+        "summary": "Registrar una raíz y generar su grafo",
+        "description": "Operación administrativa local. Registra un proyecto no protegido y publica su grafo después de una generación transaccional.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProjectInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proyecto registrado y generado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["project", "summary"],
+                  "properties": {
+                    "project": { "$ref": "#/components/schemas/Project" },
+                    "summary": { "$ref": "#/components/schemas/GraphSummary" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/projects/{projectId}": {
+      "delete": {
+        "tags": ["Projects"],
+        "operationId": "unregisterProject",
+        "summary": "Desregistrar un proyecto no protegido",
+        "description": "Conserva los archivos y el grafo en disco. Los proyectos protegidos no pueden eliminarse.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proyecto retirado del registro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["removed", "files_preserved", "default_project_id"],
+                  "properties": {
+                    "removed": { "type": "string" },
+                    "files_preserved": { "type": "boolean", "const": true },
+                    "default_project_id": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/projects/{projectId}/graph": {
+      "get": {
+        "tags": ["Projects"],
+        "operationId": "getProjectGraph",
+        "summary": "Cargar el grafo JSON de un proyecto",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documento de grafo; se sirve sin caché",
+            "headers": {
+              "Cache-Control": {
+                "schema": { "type": "string", "const": "no-store" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GraphDocument" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/projects/{projectId}/refresh": {
+      "post": {
+        "tags": ["Projects"],
+        "operationId": "refreshProjectGraph",
+        "summary": "Regenerar y publicar el grafo",
+        "description": "Operación administrativa local, incremental por defecto y transaccional. Use force=true solo para reconstruir todo el índice.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectIdPath" },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "description": "Reconstruye todo el índice cuando es true; por defecto reutiliza la caché por proyecto.",
+            "schema": { "type": "boolean", "default": false }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proyecto y resumen actualizados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["project", "summary"],
+                  "properties": {
+                    "project": { "$ref": "#/components/schemas/Project" },
+                    "summary": { "$ref": "#/components/schemas/GraphSummary" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/tools": {
+      "get": {
+        "tags": ["MCP"],
+        "operationId": "listTools",
+        "summary": "Listar las nueve herramientas MCP",
+        "responses": {
+          "200": {
+            "description": "Definiciones y schemas de entrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["tools"],
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "minItems": 9,
+                      "maxItems": 9,
+                      "items": { "$ref": "#/components/schemas/ToolDefinition" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/call": {
+      "post": {
+        "tags": ["MCP"],
+        "operationId": "callTool",
+        "summary": "Ejecutar una herramienta MCP",
+        "description": "Para un workspace multiproyecto, incluye args.projectId en todas las herramientas salvo graph_projects.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ToolCall" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado específico de la herramienta",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "tags": ["Graph"],
+        "operationId": "getGraphStats",
+        "summary": "Obtener estadísticas de un proyecto",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estadísticas del índice cargado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GraphStats" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "tags": ["Graph"],
+        "operationId": "searchGraph",
+        "summary": "Buscar nodos",
+        "description": "Primer paso para localizar IDs canónicos antes de leer o modificar código.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectQuery" },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["file", "function", "bridge_callback", "asset", "folder"] }
+          },
+          {
+            "name": "module",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nodos coincidentes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NodeSummary" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/bridge/{name}": {
+      "get": {
+        "tags": ["Graph"],
+        "operationId": "getBridgeSchema",
+        "summary": "Consultar un bridge Ruby↔JavaScript",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/ProjectQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bridge y conexiones",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BridgeDetail" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/impact/{nodeId}": {
+      "get": {
+        "tags": ["Graph"],
+        "operationId": "analyzeImpact",
+        "summary": "Analizar el impacto de un nodo",
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "description": "ID URL-encoded",
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/ProjectQuery" },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Radio y severidad del cambio",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ImpactResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/select-folder": {
+      "post": {
+        "tags": ["Local UI"],
+        "operationId": "selectLocalFolder",
+        "summary": "Abrir el selector nativo de carpetas",
+        "description": "Endpoint administrativo con efecto lateral. Exige Origin del Dashboard local y nunca debe exponerse mediante un gateway remoto.",
+        "responses": {
+          "200": {
+            "description": "Ruta elegida o null si se canceló",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["path"],
+                  "properties": {
+                    "path": { "type": ["string", "null"] }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["MCP"],
+        "operationId": "getOpenApiDocument",
+        "summary": "Obtener este contrato OpenAPI",
+        "responses": {
+          "200": {
+            "description": "Documento OpenAPI 3.1",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "ProjectIdPath": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "description": "ID exacto devuelto por /api/projects",
+        "schema": { "type": "string" }
+      },
+      "ProjectQuery": {
+        "name": "project",
+        "in": "query",
+        "required": false,
+        "description": "ID del proyecto. Omitir usa el predeterminado/legacy; en automatización multiproyecto debe enviarse siempre.",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Solicitud inválida o proyecto no consultable",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Proyecto, grafo o nodo no encontrado",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "El origen no está autorizado para esta operación local",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "El archivo existe pero no pertenece a la raíz registrada o es inválido",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Fallo interno o de generación",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "CreateProjectInput": {
+        "type": "object",
+        "required": ["name", "root"],
+        "properties": {
+          "id": { "type": "string", "description": "ID opcional; el servidor puede derivarlo del nombre" },
+          "name": { "type": "string", "minLength": 1 },
+          "root": { "type": "string", "minLength": 1, "description": "Ruta absoluta local existente" },
+          "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#8b5cf6" }
+        }
+      },
+      "ProjectList": {
+        "type": "object",
+        "required": ["default_project_id", "projects"],
+        "properties": {
+          "default_project_id": { "type": "string" },
+          "projects": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Project" }
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "required": ["id", "name", "root", "root_exists", "graph_file", "graph_url", "graph_exists", "graph_file_exists", "graph_error", "protected"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "root": { "type": "string" },
+          "root_exists": { "type": "boolean" },
+          "graph_file": { "type": "string" },
+          "graph_url": { "type": "string" },
+          "graph_exists": { "type": "boolean" },
+          "graph_file_exists": { "type": "boolean" },
+          "graph_error": { "type": ["string", "null"] },
+          "color": { "type": "string" },
+          "protected": { "type": "boolean" },
+          "generator": { "type": "string" },
+          "generated_at": { "type": ["string", "null"], "format": "date-time" },
+          "last_error": { "type": ["string", "null"] },
+          "graph_summary": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/GraphSummary" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "GraphSummary": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "nodes": { "type": "integer" },
+          "edges": { "type": "integer" },
+          "files_scanned": { "type": "integer" },
+          "graph_file": { "type": "string" },
+          "log_tail": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "GraphDocument": {
+        "type": "object",
+        "required": ["nodes", "edges"],
+        "additionalProperties": true,
+        "properties": {
+          "root": { "type": "string" },
+          "nodes": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "edges": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "summary": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "GraphStats": {
+        "type": "object",
+        "required": ["nodes", "edges", "functions", "bridges"],
+        "properties": {
+          "nodes": { "type": "integer" },
+          "edges": { "type": "integer" },
+          "functions": { "type": "integer" },
+          "bridges": { "type": "integer" },
+          "summary": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "ToolDefinition": {
+        "type": "object",
+        "required": ["name", "description", "inputSchema"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["graph_projects", "graph_search", "graph_trace", "graph_impact", "graph_bridge", "graph_node", "graph_read", "lsp_definition", "lsp_references"]
+          },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "required": ["tool"],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": ["graph_projects", "graph_search", "graph_trace", "graph_impact", "graph_bridge", "graph_node", "graph_read", "lsp_definition", "lsp_references"]
+          },
+          "args": {
+            "type": "object",
+            "description": "Argumentos según la herramienta. projectId es obligatorio por protocolo multiproyecto salvo graph_projects.",
+            "properties": {
+              "projectId": { "type": "string" },
+              "query": { "type": "string" },
+              "type": { "type": "string" },
+              "module": { "type": "string" },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "nodeId": { "type": "string" },
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
+              "direction": { "type": "string", "enum": ["both", "upstream", "downstream"] },
+              "context": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "file": { "type": "string" },
+              "line": { "type": "integer", "minimum": 0 },
+              "char": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "NodeSummary": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["file", "function", "bridge_callback", "js_function", "asset", "folder"] },
+          "name": { "type": "string" },
+          "relative_path": { "type": "string" },
+          "line": { "type": "integer" },
+          "module": { "type": "string" },
+          "language": { "type": "string" },
+          "params": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "BridgeDetail": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "schema": { "type": "object", "additionalProperties": true },
+          "incoming": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "outgoing": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+        }
+      },
+      "ImpactResult": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "sourceId": { "type": "string" },
+          "totalAffected": { "type": "integer" },
+          "severity": {
+            "type": "object",
+            "properties": {
+              "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "level": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+            }
+          },
+          "upstream": { "type": "array", "items": { "$ref": "#/components/schemas/NodeSummary" } },
+          "downstream": { "type": "array", "items": { "$ref": "#/components/schemas/NodeSummary" } }
+        }
+      }
+    }
+  }
+}
